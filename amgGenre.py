@@ -1,4 +1,3 @@
-
 import sys, re, urllib2
 
 searchURL= 'http://www.allmusic.com/cg/amg.dll?p=amg&opt1=2&sql='
