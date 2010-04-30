@@ -3,7 +3,7 @@ import sys, re, urllib2
 searchURL= 'http://www.allmusic.com/cg/amg.dll?p=amg&opt1=2&sql='
 infoURL  = 'http://www.allmusic.com/cg/amg.dll?p=amg&'
 
-title = 'Destination: Beautiful'
+title = 'throne to the wolves'
 print "URL:", searchURL + urllib2.quote(title, safe=':')
 
 try:
@@ -23,12 +23,34 @@ try:
 	d = u.read()
 	d = re.sub('&amp;amp;', '&', d)
 	d = re.sub('&amp;', '&', d)
-	temp = re.findall(r'Genre Listing-->(?P<genre>.*?)--End Genre', d)
+	temp = re.findall(r'Styles Listing-->(?P<genre>.*?)--End Genre', d)
 	#print temp
-	genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', temp[0])
-	for g in genresList:
-		print g
-
+	if len(temp):
+		genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', temp[0])
+		for g in genresList:
+			print g
+	else:
+		print "Grabbing artist Styles"
+		temp = re.findall(r'(?P<artistlink>sql=11:[0-9a-z]*?)">', d)
+		u = urllib2.urlopen(infoURL + temp[0])
+		d = u.read()
+		d = re.sub('&amp;amp;', '&', d)
+		d = re.sub('&amp;', '&', d)
+		temp = re.findall(r'Style Listing-->(?P<genre>.*?)Style Listing--></tr>', d)
+		#print temp
+		if len(temp):
+			genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', temp[0])
+			for g in genresList:
+				print g
+		else:
+			print "Grabbing artist Genre"
+			temp = re.findall(r'<!--Begin Genre Listing-->(?P<genre>.*?)<!--Genre Listing--><', d)
+			if len(temp):
+				genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', temp[0])
+				for g in genresList:
+					print g
+			else:
+				print "No genre! Completely boring music, apparently"
 	
 except Exception, e:
 	print e
