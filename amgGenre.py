@@ -35,8 +35,8 @@ for arg in sys.argv[1:]:
 					if not single:
 						while retry > 0:
 							try:
-								print "URL:", albumSearchURL + urllib2.quote(title, safe=':()')
-								u = urllib2.urlopen(albumSearchURL + urllib2.quote(title, safe=':()'))
+								print "URL:", albumSearchURL + urllib2.quote(title, safe=':(),')
+								u = urllib2.urlopen(albumSearchURL + urllib2.quote(title, safe=':(),'))
 								d = u.read()
 								d = re.sub('&amp;amp;', '&', d)
 								d = re.sub('&amp;', '&', d)
