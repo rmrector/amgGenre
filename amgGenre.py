@@ -85,15 +85,16 @@ for arg in sys.argv[1:]:
 											for g in genresList:
 												print g
 										else:
-											print "Grabbing artist Genre"
-											temp = re.findall(r'<!--Begin Genre Listing-->(?P<genre>.*?)<!--Genre Listing--><', d)
-											if len(temp):
-												print "Genres:"
-												genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', temp[0])
-												for g in genresList:
-													print g
-											else:
-												print "No genre! Completely boring music, apparently."
+											print "No genre! Completely boring music, apparently."
+											#print "Grabbing artist Genre"
+											#temp = re.findall(r'<!--Begin Genre Listing-->(?P<genre>.*?)<!--Genre Listing--><', d)
+											#if len(temp):
+											#	print "Genres:"
+											#	genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', temp[0])
+											#	for g in genresList:
+											#		print g
+											#else:
+											#	print "No genre! Completely boring music, apparently."
 								break
 							except Exception, e:
 								print e
