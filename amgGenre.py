@@ -51,7 +51,7 @@ for arg in sys.argv[1:]:
 								for n,u in optionlist:
 									if(len(optionlistsp) > 0):
 										optionlistsp += " "
-									optionlistsp += "\"" + n + "\" \"" + u + "\""
+									optionlistsp += "\"" + re.sub('"', '\\"', n) + "\" \"" + u + "\""
 								pn = subprocess.Popen('zenity --list --print-column=2 --text="%(title)s" --column="Name" \
 								--column="URL" %(data)s --display=:0.0 --width=750 --height=500' 
 								% {'title': searcharg, 'data': optionlistsp}, shell=True, stdout=subprocess.PIPE)
