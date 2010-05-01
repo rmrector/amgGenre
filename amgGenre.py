@@ -68,7 +68,7 @@ for arg in sys.argv[1:]:
 									temp = re.findall(r'Styles Listing-->(?P<genre>.*?)--End Genre', d)
 									if len(temp):
 										print "Genres:"
-										genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', temp[0])
+										genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', unicode(temp[0], "iso-8859-1"))
 										for g in genresList:
 											print g
 									else:
@@ -81,7 +81,7 @@ for arg in sys.argv[1:]:
 										temp = re.findall(r'Style Listing-->(?P<genre>.*?)Style Listing--></tr>', d)
 										if len(temp):
 											print "Genres:"
-											genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', temp[0])
+											genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', unicode(temp[0], "iso-8859-1"))
 											for g in genresList:
 												print g
 										else:
