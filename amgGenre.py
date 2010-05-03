@@ -140,12 +140,14 @@ def main():
 						if newpath.lower().endswith(".flac"):
 							audio = FLAC(newpath)
 						title = audio["album"][0]
+						title = re.sub('\xc6','AE', title)
 						title = unicodedata.normalize('NFKD', title).encode('ASCII', 'ignore')
 						title = re.sub('( \(.*\)$)', '', title)
 						single = False
 						if title == "!Single":
 							single = True
 						artist = audio["artist"][0]
+						artist = re.sub('\xc6','AE', artist)
 						artist = unicodedata.normalize('NFKD', artist).encode('ASCII', 'ignore')
 
 						if not single:
