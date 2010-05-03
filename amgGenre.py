@@ -15,6 +15,15 @@ urlSafeSearch = ':(),!'
 def run_zenity(type, *args):
 	return Popen(['zenity', type] + list(args), stdin=PIPE, stdout=PIPE)
 
+def ZenityErrorMessage(text):
+    """Show an error message dialog to the user.
+    
+    This will raise a Zenity Error Dialog with a description of the error.
+    
+    text - A description of the error."""
+
+    run_zenity('--error', '--text=%s' % text).wait()
+
 def ZenityList(column_names, text=None, boolstyle=None, editable=False, 
 							select_col=None, sep='|', data=[]):
 	"""Present a list of items to select.
@@ -106,7 +115,7 @@ def ZenityProgress(text='', percentage=0, auto_close=False, pulsate=False, title
     return update, p
 
 def grabby(url):
-	retry = 5
+	retry = 2
 	while retry > 0:
 		try:
 			if retry < 5:
@@ -122,7 +131,7 @@ def grabby(url):
 		except Exception, e:
 			print e
 			retry -= 1
-	print "Retries exceeded, flailing gracefully"
+	return -1
 
 def main():
 	for arg in sys.argv[1:]:
@@ -130,6 +139,7 @@ def main():
 			genresList = None
 			update = None
 			p = None
+			errorMessage = ''
 			for sf in os.listdir(arg):
 				newpath = os.path.join(arg, sf)
 				if os.path.isfile(newpath):
@@ -153,6 +163,8 @@ def main():
 						if not single:
 							update, p = ZenityProgress(text = 'Looking for album... ' + title, auto_close = True, title = 'Setting genres...')
 							data = grabby(albumSearchURL + urllib2.quote(title, safe=urlSafeSearch))
+							if data == -1:
+								errorMessage = 'Timeout'
 							searcharg = arg + " (" +re.findall(r'<span class="title">(?P<search>.*?)</span>', data)[0] + ")"
 							searcharg = re.sub('&', '&amp;', searcharg)
 							temp = re.findall(r'trlink".*?"cell">(?P<year>\d\d\d\d).*?word;">(?P<artist>.*?)</TD.*?(?P<link>sql=10:.*?)">(?P<title>.*?)</.*?-word;">(?P<label>.*?)</', data)
@@ -166,6 +178,8 @@ def main():
 								if p.poll() == 1:
 									sys.exit()
 								data = grabby(infoURL + selected[0])
+								if data == -1:
+									errorMessage = 'Timeout'
 								temp = re.findall(r'Styles Listing-->(?P<genre>.*?)--End Genre', data)
 								if len(temp):
 									genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', unicode(temp[0], "iso-8859-1"))
@@ -173,8 +187,10 @@ def main():
 									if p.poll() == 1:
 										sys.exit()
 									print "Grabbing artist Styles"
-									temp = re.findall(r'(?P<artistlink>sql=11:[0-9a-z]*?)">', d)
+									temp = re.findall(r'(?P<artistlink>sql=11:[0-9a-z]*?)">', data)
 									data = grabby(infoURL + temp[0])
+									if data == -1:
+										errorMessage = 'Timeout'
 									temp = re.findall(r'Style Listing-->(?P<genre>.*?)Style Listing--></tr>', data)
 									if len(temp):
 										print "Genres:"
@@ -182,7 +198,7 @@ def main():
 										for g in genresList:
 											print g
 									else:
-										print "No genre! Completely boring music, apparently."
+										errorMessage = 'No Styles Available'
 										#print "Grabbing artist Genre"
 										#temp = re.findall(r'<!--Begin Genre Listing-->(?P<genre>.*?)<!--Genre Listing--><', d)
 										#if len(temp):
@@ -194,16 +210,15 @@ def main():
 										#	print "No genre! Completely boring music, apparently."
 						else:
 							data = grabby(artistSearchURL + urllib2.quote(artist, safe=urlSafeSearch))
+							if data == -1:
+								errorMessage = 'Timeout'
 							searcharg = arg[:-1] + " (" +re.findall(r'<span class="title">(?P<search>.*?)</span>', data)[0] + ")"
 							searcharg = re.sub('&', '&amp;', searcharg)
 							temp = re.findall(r'Style Listing-->(?P<genre>.*?)Style Listing--></tr>', data)
 							if len(temp):
-								print "Genres:"
 								genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', temp[0])
-								for g in genresList:
-									print g
 							else:
-								print "No genre! Completely boring music, apparently."
+								errorMessage = 'No Styles Available'
 						break
 			if not genresList == None:
 				total = len(os.listdir(arg))
@@ -230,6 +245,8 @@ def main():
 							update(float(count) / total, str(count) + "/" + str(total) + ": " + audio['title'][0])
 							#print "\"" + audio["title"][0] + "\" genre set to " + genreslistsp
 				genresList = None
+			if len(errorMessage):
+				ZenityErrorMessage(errorMessage)
 
 if __name__ == '__main__':
 	main()
