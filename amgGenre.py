@@ -115,10 +115,10 @@ def ZenityProgress(text='', percentage=0, auto_close=False, pulsate=False, title
     return update, p
 
 def grabby(url):
-	retry = 2
+	retry = 3
 	while retry > 0:
 		try:
-			if retry < 5:
+			if retry < 3:
 				print "Oops! Trying again. URL:", url
 			else:
 				print "URL:", url
@@ -171,44 +171,97 @@ def main():
 							optionlist = []
 							for i in temp:
 								optionlist.append((re.sub('"', '\\"', unicode(i[1] + " - " + i[3] + " (" + i[0] + ")", "iso-8859-1")), i[2]))
+							optionlist.append(("Search on artist? (" + artist + ")", "opt1=1&sql=Artist"))
 							if p.poll() == 1:
 								sys.exit()
 							selected = ZenityList(("Name", "URL"), searcharg, select_col = 2, data = optionlist)
 							if not selected == None and not selected[0] == '':
 								if p.poll() == 1:
 									sys.exit()
-								data = grabby(infoURL + selected[0])
-								if data == -1:
-									errorMessage = 'Timeout'
-								temp = re.findall(r'Styles Listing-->(?P<genre>.*?)--End Genre', data)
-								if len(temp):
-									genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', unicode(temp[0], "iso-8859-1"))
-								else:
+								if selected[0] == 'opt1=1&sql=Artist':
+									data = grabby(artistSearchURL + urllib2.quote(artist, safe=urlSafeSearch))
+									if data == -1:
+										errorMessage = 'Timeout'
+									temp = re.findall(r'(?P<discoglink>sql=11:[0-9a-z]*?~T2)">Discography', data)
 									if p.poll() == 1:
 										sys.exit()
-									print "Grabbing artist Styles"
-									temp = re.findall(r'(?P<artistlink>sql=11:[0-9a-z]*?)">', data)
 									data = grabby(infoURL + temp[0])
 									if data == -1:
 										errorMessage = 'Timeout'
-									temp = re.findall(r'Style Listing-->(?P<genre>.*?)Style Listing--></tr>', data)
+									searcharg = arg + " (" +re.findall(r'<span class="title">(?P<search>.*?)</span>', data)[0] + ")"
+									searcharg = re.sub('&', '&amp;', searcharg)
+									temp = re.findall(r'trlink".*?"sorted-cell">(?P<year>\d\d\d\d).*?(?P<link>sql=10:.*?)">(?P<title>.*?)</.*?-word;">(?P<label>.*?)</', data)
+									print temp
+									optionlist = []
+									for i in temp:
+										optionlist.append((re.sub('"', '\\"', unicode(i[2] + " (" + i[0] + ")", "iso-8859-1")), i[1]))
+									optionlist.append(("Use artist styles? (" + artist + ")","opt1=1&sql=Artist"))
+									if p.poll() == 1:
+										sys.exit()
+									selected = ZenityList(("Name", "URL"), searcharg, select_col = 2, data = optionlist)
+									if not selected == None and not selected[0] == '':
+										if p.poll() == 1:
+											sys.exit()
+										if selected[0] == 'opt1=1&sql=Artist':
+											temp = re.findall(r'Style Listing-->(?P<genre>.*?)Style Listing--></tr>', data)
+											if len(temp):
+												genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', unicode(temp[0], "iso-8859-1"))
+											else:
+												errorMessage = 'No Styles Available'
+										else:
+											data = grabby(infoURL + selected[0])
+											if data == -1:
+												errorMessage = 'Timeout'
+											temp = re.findall(r'Styles Listing-->(?P<genre>.*?)--End Genre', data)
+											if len(temp):
+												genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', unicode(temp[0], "iso-8859-1"))
+											else:
+												if p.poll() == 1:
+													sys.exit()
+												print "Grabbing artist Styles"
+												temp = re.findall(r'(?P<artistlink>sql=11:[0-9a-z]*?)">', data)
+												data = grabby(infoURL + temp[0])
+												if data == -1:
+													errorMessage = 'Timeout'
+												temp = re.findall(r'Style Listing-->(?P<genre>.*?)Style Listing--></tr>', data)
+												if len(temp):
+													print "Genres:"
+													genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', unicode(temp[0], "iso-8859-1"))
+													for g in genresList:
+														print g
+												else:
+													errorMessage = 'No Styles Available'
+								else:
+									data = grabby(infoURL + selected[0])
+									if data == -1:
+										errorMessage = 'Timeout'
+									temp = re.findall(r'Styles Listing-->(?P<genre>.*?)--End Genre', data)
 									if len(temp):
-										print "Genres:"
 										genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', unicode(temp[0], "iso-8859-1"))
-										for g in genresList:
-											print g
 									else:
-										errorMessage = 'No Styles Available'
-										#print "Grabbing artist Genre"
-										#temp = re.findall(r'<!--Begin Genre Listing-->(?P<genre>.*?)<!--Genre Listing--><', d)
-										#if len(temp):
-										#	print "Genres:"
-										#	genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', temp[0])
-										#	for g in genresList:
-										#		print g
-										#else:
-										#	print "No genre! Completely boring music, apparently."
+										if p.poll() == 1:
+											sys.exit()
+										print "Grabbing artist Styles"
+										temp = re.findall(r'(?P<artistlink>sql=11:[0-9a-z]*?)">', data)
+										data = grabby(infoURL + temp[0])
+										if data == -1:
+											errorMessage = 'Timeout'
+										temp = re.findall(r'Style Listing-->(?P<genre>.*?)Style Listing--></tr>', data)
+										if len(temp):
+											genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', unicode(temp[0], "iso-8859-1"))
+										else:
+											errorMessage = 'No Styles Available'
+											#print "Grabbing artist Genre"
+											#temp = re.findall(r'<!--Begin Genre Listing-->(?P<genre>.*?)<!--Genre Listing--><', d)
+											#if len(temp):
+											#	print "Genres:"
+											#	genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', temp[0])
+											#	for g in genresList:
+											#		print g
+											#else:
+											#	print "No genre! Completely boring music, apparently."
 						else:
+							#Chokes if search doesn't return a direct link to an artist
 							data = grabby(artistSearchURL + urllib2.quote(artist, safe=urlSafeSearch))
 							if data == -1:
 								errorMessage = 'Timeout'
