@@ -241,7 +241,7 @@ def main():
 										if p.poll() == 1:
 											sys.exit()
 										if selected[0] == 'opt1=1&sql=Artist':
-											genresList = grabGenre(infoURL + newUrl)
+											genresList = grabGenre(infoURL + newUrl[0])
 										else:
 											genresList = grabGenre(infoURL + selected[0])
 								else:
