@@ -203,7 +203,7 @@ def main():
 						single = False
 						if title == "!Single":
 							single = True
-						artist = audio["artist"][0]
+						artist = audio["albumartist"][0]
 						artist = re.sub('\xc6','AE', artist)
 						artist = unicodedata.normalize('NFKD', artist).encode('ASCII', 'ignore')
 
