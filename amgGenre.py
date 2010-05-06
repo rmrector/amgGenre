@@ -145,6 +145,7 @@ def grab(url, regex, listType, artist):
 		optionlist = []
 		for i in reglist:
 			optionlist.append((re.sub('"', '\\"', unicode(i[1] + " - " + i[3] + " (" + i[0] + ")", "iso-8859-1")), i[2]))
+		optionlist = sortList(optionlist, artist, 'search')
 		optionlist.append(("Search on artist? (" + artist + ")", "opt1=1&sql=Artist"))
 		return optionlist
 	elif listType == "single":
@@ -159,6 +160,25 @@ def grab(url, regex, listType, artist):
 		optionlist.append(("Use artist styles? (" + artist + ")","opt1=1&sql=Artist"))
 		return optionlist
 	return -1
+
+def sortList(optionlist, artist, listType):
+	finallist = []
+	if listType == "search":
+		for i in optionlist:
+			if i[0].startswith(artist):
+				finallist.append(i)
+				optionlist.remove(i)
+		if len(artist) > 3:
+			for i in optionlist:
+				if i[0][:3] == artist[:3]:
+					finallist.append(i)
+					optionlist.remove(i)
+		for i in optionlist:
+			if i[0][0] == artist[0]:
+				finallist.append(i)
+				optionlist.remove(i)
+		finallist = finallist + optionlist
+	return finallist
 
 def grabGenre(url, first = True):
 	data = grabby(url)
