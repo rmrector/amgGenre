@@ -136,7 +136,7 @@ def grabby(url):
 		except Exception, e:
 			print e
 			r -= 1
-	sendError(message)
+	sendError('URL problem. ' + url)
 
 def grab(url, regex, listType, artist):
 	data = grabby(url)
