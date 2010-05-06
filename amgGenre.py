@@ -209,7 +209,7 @@ def main():
 
 						u, p = ZenityProgress(text = 'Looking for album... ' + title, auto_close = True, title = 'Setting genres...')
 
-						m = re.search(r'/.*?(sql=10:[0-9a-z]*)', os.path.abspath(arg))
+						m = re.search(r'/.*?(sql=1[1|2]:[0-9a-z]*)', os.path.abspath(arg))
 
 						if m:
 							genresList = grabGenre(infoURL + m.group(1))
