@@ -212,6 +212,7 @@ def main():
 						m = re.search(r'/.*?(sql=1[1|0]:[0-9a-z]*)', os.path.abspath(arg))
 
 						if m:
+							u(0, 'direct lookup found: ' + m.group(1))
 							genresList = grabGenre(infoURL + m.group(1))
 						elif not single:
 							optionlist = grab(albumSearchURL + urllib2.quote(title, safe=urlSafeSearch),
