@@ -173,7 +173,7 @@ def grabGenre(url, first = True):
 	elif first:
 		temp = re.findall(r'(?P<artistlink>sql=11:[0-9a-z]*?)">', data)
 		if len(temp):
-			genresList = grabGenre(temp[0], False)
+			genresList = grabGenre(infoURL + temp[0], False)
 			return genresList
 		else:
 			sendError('No Styles Available')
