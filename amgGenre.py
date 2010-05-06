@@ -148,7 +148,10 @@ def grab(url, regex, listType, artist):
 		optionlist.append(("Search on artist? (" + artist + ")", "opt1=1&sql=Artist"))
 		return optionlist
 	elif listType == "single":
-		return reglist[0]
+		if reglist:
+			return reglist
+		else:
+			sendError('Could Not Find Artist')
 	elif listType == "artist":
 		optionlist = []
 		for i in reglist:
