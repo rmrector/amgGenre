@@ -213,7 +213,6 @@ def main():
 
 						if m:
 							genresList = grabGenre(infoURL + m.group(1))
-							sys.exit()
 						elif not single:
 							optionlist = grab(albumSearchURL + urllib2.quote(title, safe=urlSafeSearch),
 							            r'trlink".*?"cell">(?P<year>\d\d\d\d).*?word;">(?P<artist>.*?)</TD.*?(?P<link>sql=10:.*?)">(?P<title>.*?)</.*?-word;">(?P<label>.*?)</',
