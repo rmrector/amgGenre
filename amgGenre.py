@@ -226,6 +226,7 @@ def main():
 								if p.poll() == 1:
 									sys.exit()
 								if selected[0] == 'opt1=1&sql=Artist':
+									u(0, "Searching on artist: " + artist)
 									newUrl = grab(artistSearchURL + urllib2.quote(artist, safe=urlSafeSearch),
 									              r'(?P<discoglink>sql=11:[0-9a-z]*?~T2)">Discography',
 									              'single', artist)
