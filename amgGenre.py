@@ -229,7 +229,7 @@ def main():
 									newUrl = grab(artistSearchURL + urllib2.quote(artist, safe=urlSafeSearch),
 									              r'(?P<discoglink>sql=11:[0-9a-z]*?~T2)">Discography',
 									              'single', artist)
-									optionlist = grab(infoURL + newUrl,
+									optionlist = grab(infoURL + newUrl[0],
 									                  r'trlink".*?"sorted-cell">(?P<year>\d\d\d\d).*?(?P<link>sql=10:.*?)">(?P<title>.*?)</.*?-word;">(?P<label>.*?)</',
 									                  'artist', artist)
 									searcharg = arg
