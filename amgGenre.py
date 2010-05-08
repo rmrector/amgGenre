@@ -303,7 +303,7 @@ def main():
 								audio = FLAC(newpath)
 							audio["genre"] = genresList
 							audio.save()
-							u(float(count) / total, str(count) + "/" + str(total) + ": " + audio['title'][0])
+							u(float(count) / total, str(count) + "/" + str(total) + ": " + unicodedata.normalize('NFKD', audio['title'][0]).encode('ASCII', 'ignore'))
 							#print "\"" + audio["title"][0] + "\" genre set to " + genreslistsp
 
 if __name__ == '__main__':
