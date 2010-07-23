@@ -229,7 +229,7 @@ def main():
 
 						u, p = ZenityProgress(text = 'Looking for album... ' + title, auto_close = True, title = 'Setting genres...')
 
-						m = re.search(r'/.*?(sql=1[1|0]:[0-9a-z]*)', os.path.abspath(arg))
+						m = re.search(r'.*?(sql=1[1|0]:[0-9a-z]*)', os.path.abspath(arg))
 
 						if m:
 							u(0, 'direct lookup found: ' + m.group(1))
