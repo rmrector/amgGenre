@@ -1,6 +1,8 @@
 amgGenre
 ========
 
+**Currently does not work!** due to changes to the allmusic web site
+
 I dislike coming up with genres for new music added to my library, and Rock/Pop
 or Rap or Classical just doesn't give me the detail I would like;
 enter allmusic Styles.
