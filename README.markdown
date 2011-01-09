@@ -1,20 +1,16 @@
 amgGenre
 ========
 
-**Currently does not work!** due to changes to the allmusic web site
+I dislike coming up with genres for new music added to my library, and
+Rock/Pop or Classical just doesn't give me the detail I would like; enter
+AllMusic Styles.
 
-I dislike coming up with genres for new music added to my library, and Rock/Pop
-or Rap or Classical just doesn't give me the detail I would like;
-enter allmusic Styles.
-
-A script that pulls Style information from [allmusic](http://www.allmusic.com)
+A script that pulls Style information from [AllMusic](http://www.allmusic.com)
 and sets them as the genre for music files.
 
-This script only works on Ogg Vorbis and FLAC files, and writes Vorbis tags.
+This only works on Ogg Vorbis and FLAC files, and writes Vorbis tags.
 
-It uses zenity as the GUI, with a bit of help from
-[PyZenity](http://www.brianramos.com/?page_id=110). See LICENSE for
-license information.
+Works on Linux; probably works wherever Python and pyGTK does (Windows, OSX).
 
 Usage
 -----
@@ -25,12 +21,12 @@ No options, just one or more directories each containing one album.
 
 Works well as a Nautilus script.
 
-To force it to use a specific page from allmusic (artist or album), add the 
-`sql=1x:xxxxxxxxxxxx` portion of the url for that page to the directory name.
-It will automatically apply Styles from that page to the genre tag of all music
-files inside the directory.
+To force it to use a specific page from allmusic (artist or album), add the
+`r123456` or `p123456` portion of the url for that page to the directory name,
+inside parenthesis `(r123456)`. It will automatically apply Styles from that
+page to the genre tag of all music files inside the directory.
 
 Dependencies
 ------------
-* zenity: built into Gnome, also available for Windows
+* [pyGTK](http://pygtk.org/)
 * [Mutagen](http://code.google.com/p/mutagen/)
