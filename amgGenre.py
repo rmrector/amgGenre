@@ -1,311 +1,346 @@
 #!/usr/bin/python
 
-import sys, re, urllib2, os, unicodedata
+#TODO: pick from artist discography
 
-from mutagen.oggvorbis import OggVorbis
 from mutagen.flac import FLAC
-from subprocess import Popen, PIPE
-from itertools import chain
+from mutagen.oggvorbis import OggVorbis
+import gobject
+import gtk
+import os
+import pygtk
+import re
+import sys
+import urllib2
+pygtk.require('2.0')
 
-albumSearchURL= 'http://www.allmusic.com/cg/amg.dll?p=amg&opt1=2&sql='
-artistSearchURL= 'http://www.allmusic.com/cg/amg.dll?p=amg&opt1=1&sql='
-infoURL  = 'http://www.allmusic.com/cg/amg.dll?p=amg&'
-urlSafeSearch = ':(),!'
-retry = 3
-p = None
-u = None
+class AmgGenreGrabber:
+	def __init__(self, path_list):
+		self.single = "!Single"
+		self.various_artists = "Various Artists"
+		self.search_url = "http://www.allmusic.com/search/" # + 'album/' or 'artist/'
+		self.info_url = "http://www.allmusic.com/" # + 'album/' or 'artist/'
+		self.url_safe = ':(),!'
 
-def run_zenity(type, *args):
-	return Popen(['zenity', type] + list(args), stdin=PIPE, stdout=PIPE)
+		self.count = -1
+		self.close_dialog = False
 
-def ZenityErrorMessage(text):
-    """Show an error message dialog to the user.
-    
-    This will raise a Zenity Error Dialog with a description of the error.
-    
-    text - A description of the error."""
+		self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+		self.window.set_title("AMG Genre Grabber")
+		self.window.set_default_size(450, 500)
+		self.window.connect("delete_event", self.delete_event)
+		self.window.set_border_width(5)
 
-    run_zenity('--error', '--text=%s' % text).wait()
+		self.init_gui()
 
-def ZenityList(column_names, text=None, boolstyle=None, editable=False, 
-							select_col=None, sep='|', data=[]):
-	"""Present a list of items to select.
+		self.window.show_all()
 
-	This will raise a Zenity List Dialog populated with the colomns and rows 
-	specified and return either the cell or row that was selected or None if 
-	the user hit cancel.
+		gobject.idle_add(self.get_search_list, path_list)
 
-	column_names - A tuple or list containing the names of the columns.
-	title - The title of the dialog box.
-	boolstyle - Whether the first columns should be a bool option ("checklist",
-	            "radiolist") or None if it should be a text field.
-	editable - True if the user can edit the cells.
-	select_col - The column number of the selected cell to return or "ALL" to 
-	             return the entire row.
-	sep - Token to use as the row separator when parsing Zenity's return. 
-	      Cells should not contain this token.
-	data - A list or tuple of tuples that contain the cells in the row.  The 
-	      size of the row's tuple must be equal to the number of columns."""
+	def init_gui(self):
+		box1 = gtk.VBox(False, 0)
 
-	args = []
-	args.append('--width=500')
-	args.append('--height=550')
-	for column in column_names:
-		args.append('--column=%s' % column)
+		box2 = gtk.HBox(False, 0)
+		self.count_label = gtk.Label()
+		self.count_label.set_justify(gtk.JUSTIFY_LEFT)
+		self.album_label = gtk.Label()
+		self.album_label.set_justify(gtk.JUSTIFY_LEFT)
+		self.album_label.set_line_wrap(True)
 
-	if text:
-		args.append('--text=%s' % text)
-	if boolstyle:
-		if not (boolstyle == 'checklist' or boolstyle == 'radiolist'):
-			raise ValueError('"%s" is not a proper boolean column style.' % boolstyle)
-		args.append('--' + boolstyle)
-	if editable:
-		args.append('--editable')
-	if select_col:
-		args.append('--print-column=%s' % select_col)
-	if sep != '|':
-		args.append('--separator=%s' % sep)
+		box2.pack_start(self.count_label, False, False, 0)
+		box2.pack_start(self.album_label, False, False, 5)
 
-	for datum in chain(*data):
-		args.append(datum)
+		box1.pack_start(box2, False, False, 5)
 
-	p = run_zenity('--list', *args)
+		scrolled_window = gtk.ScrolledWindow()
+		scrolled_window.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+		# Why won't this friggin' shadow go away?
+		scrolled_window.set_shadow_type(gtk.SHADOW_NONE)
+		scrolled_window.set_property ('shadow-type', gtk.SHADOW_NONE)
 
-	if p.wait() == 0:
-		return p.stdout.read().strip().split(sep)
+		self.liststore = gtk.ListStore(str, str)
+		self.treeview = gtk.TreeView(self.liststore)
+		self.treeview.set_model(self.liststore)
+		self.treeview.connect("row-activated", self.row_activated)
+		self.cell = gtk.CellRendererText()
+		self.cell2 = gtk.CellRendererText()
+		self.treeviewcolumn = gtk.TreeViewColumn("Name", self.cell, text=0)
+		self.treeviewcolumn.set_resizable(True)
+		self.treeviewcolumn.set_reorderable(True)
+		self.treeviewcolumn2 = gtk.TreeViewColumn("URL", self.cell2, text=1)
+		self.treeviewcolumn2.set_resizable(True)
+		self.treeviewcolumn2.set_reorderable(True)
+		self.treeview.append_column(self.treeviewcolumn)
+		self.treeview.append_column(self.treeviewcolumn2)
 
-def ZenityProgress(text='', percentage=0, auto_close=False, pulsate=False, title=''):
-    """Show a progress dialog to the user.
-    
-    This will raise a Zenity Progress Dialog.  It returns a callback that 
-    accepts two arguments.  The first is a numeric value of the percent 
-    complete.  The second is a message about the progress.
+		scrolled_window.add(self.treeview)
 
-    NOTE: This function sends the SIGHUP signal if the user hits the cancel 
-          button.  You must connect to this signal if you do not want your 
-          application to exit.
-    
-    text - The initial message about the progress.
-    percentage - The initial percentage to set the progress bar to.
-    auto_close - True if the dialog should close automatically if it reaches 
-                 100%.
-    pulsate - True is the status should pulsate instead of progress."""
+		box1.pack_start(scrolled_window, True, True, 0)
 
-    args = []
-    args.append('--width=400')
-    if title:
-	    args.append('--title=%s' % title)
-    if text:
-      args.append('--text=%s' % text)
-    if percentage:
-      args.append('--percentage=%s' % percentage)
-    if auto_close:
-      args.append('--auto-close=%s' % auto_close)
-    if pulsate:
-      args.append('--pulsate=%s' % pulsate)
+		button_box = gtk.HButtonBox()
+		button_box.set_layout(gtk.BUTTONBOX_END)
+		button_box.set_spacing(10)
 
-    #p = Popen(["zenity", '--progress'] + args, stdin=PIPE, stdout=PIPE)
-    p = run_zenity('--progress', *args)
+		ok_button = gtk.Button("OK")
+		ok_button.connect("clicked", self.ok_button_clicked)
+		skip_button = gtk.Button("Skip")
+		skip_button.connect("clicked", self.skip_button_clicked)
+		cancel_button = gtk.Button("Cancel")
+		cancel_button.connect("clicked", self.cancel_button_clicked)
 
-    def update(percent, message=''):
-        if type(percent) == float:
-            percent = int(percent * 100)
-        p.stdin.write(str(percent) + '\n')
-        if message:
-            p.stdin.write('# %s\n' % message)
-        return p.returncode
+		button_box.pack_end(cancel_button)
+		button_box.pack_end(skip_button)
+		button_box.pack_end(ok_button)
 
-    return update, p
+		box1.pack_start(button_box, False, False, 3)
 
-def grabby(url):
-	r = retry
-	while r > 0:
-		if not p == None and p.poll() == 1:
-			sys.exit()
-		try:
-			if r < retry:
-				print "Oops! Trying again. URL:", url
+		self.status_bar = gtk.Statusbar()
+		self.status_bar.set_has_resize_grip(True)
+		self.context_id = self.status_bar.get_context_id("Status Bar")
+
+		box1.pack_start(self.status_bar, False, False, 0)
+
+		self.window.add(box1)
+
+	def get_search_list(self, path_list):
+		self.search_list = []
+		for path in path_list:
+			if os.path.isdir(path):
+				music_found = False
+				for f in os.listdir(path):
+					file_path = os.path.join(path, f)
+					if os.path.isfile(file_path):
+						if file_path.lower().endswith(".ogg") or file_path.lower().endswith(".flac"):
+							if file_path.lower().endswith(".ogg"):
+								audio = OggVorbis(file_path)
+							elif file_path.lower().endswith(".flac"):
+								audio = FLAC(file_path)
+							self.search_list.append([path, audio["album"][0], audio["albumartist"][0], None])
+							music_found = True
+							break
+				if not music_found:
+					self.search_list.append([path, "", "", "does not contain ogg/flac files"])
 			else:
-				print "URL:", url
-			u = urllib2.urlopen(url)
-			d = u.read()
-			d = re.sub('&amp;amp;', '&', d)
-			d = re.sub('&amp;', '&', d)
-			u.close()
-			return d
-		except Exception, e:
-			print e
-			r -= 1
-	sendError('URL problem. ' + url)
+				self.search_list.append([path, "", "", "is not a valid directory"])
+		self.search_on_list()
 
-def grab(url, regex, listType, artist):
-	data = grabby(url)
-	reglist = re.findall(regex, data)
-	if listType == "search":
-		optionlist = []
-		for i in reglist:
-			optionlist.append((re.sub('"', '\\"', unicode(i[1] + " - " + i[3] + " (" + i[0] + ")", "iso-8859-1")), i[2]))
-		optionlist = sortList(optionlist, artist, 'search')
-		optionlist.append(("Search on artist? (" + artist + ")", "opt1=1&sql=Artist"))
-		return optionlist
-	elif listType == "single":
-		if reglist:
-			return reglist
+	def search_on_list(self):
+		self.count += 1
+		try:
+			self.count_label.set_text("%i/%i: " % (self.count + 1, len(self.search_list)))
+			self.album_label.set_text(os.path.basename(self.search_list[self.count][0]))
+			m = re.search(r'\(([p|r][0-9]+)\)', self.search_list[self.count][0])
+			if not self.search_list[self.count][3] == None:
+				message_dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL, gtk.MESSAGE_WARNING, gtk.BUTTONS_OK)
+				message_dialog.set_markup("<b>%s</b> %s." % (self.search_list[self.count][0], self.search_list[self.count][3]))
+				message_dialog.run()
+				message_dialog.destroy()
+				self.search_on_list()
+			elif m:
+				self.status_bar.push(self.context_id, "Direct lookup found: " + m.group(1))
+				if m.group(1)[0] == 'p':
+					gobject.idle_add(self.grab_genre, "artist/" + m.group(1))
+				elif m.group(1)[0] == 'r':
+					gobject.idle_add(self.grab_genre, "album/" + m.group(1))
+			else:
+				self.status_bar.push(self.context_id, "Searching...")
+				model = self.treeview.get_model()
+				self.treeview.scroll_to_point(0, 0)
+				model.clear()
+				if self.search_list[self.count][1] == self.single:
+					gobject.idle_add(self.search_artist(self.search_list[self.count][2]))
+				else:
+					gobject.idle_add(self.search_album, self.search_list[self.count][1], self.search_list[self.count][2])
+				return True
+		except IndexError:
+			return False
+
+	def search_artist(self, artist):
+		self.treeviewcolumn.set_title("Artist")
+		data = self.grab_url(self.search_url + "artist/" + urllib2.quote(artist.encode("utf-8"), safe=self.url_safe) + "/exact:0")
+		model = self.treeview.get_model()
+		self.treeview.scroll_to_point(0, 0)
+		model.clear()
+		artist_list = []
+		for m in re.finditer(r'-(?P<link>p[0-9]+)">(?P<artist>.*?)</a></td>.*?<td>(?P<genre>.*?)</td>.*?<td>(?P<years>.*?)</td>', data, re.S):
+			artist_list.append(["%s - %s (%s)" % (m.group("artist"), m.group("genre"), m.group("years")), 'artist/' + m.group("link")])
+		artist_list = self.sort_album_list(artist_list, artist)
+		for i in artist_list:
+			model.append(i)
+		self.treeviewcolumn.queue_resize()
+		self.status_bar.pop(self.context_id)
+		if len(artist_list) == 0:
+			self.status_bar.push(self.context_id, "No artists found")
+			gobject.timeout_add(2500, self.clear_status_bar)
+
+	def search_album(self, album, artist):
+		self.treeviewcolumn.set_title("Album")
+		data = self.grab_url(self.search_url + "album/" + urllib2.quote(album.encode("utf-8"), safe=self.url_safe))
+		model = self.treeview.get_model()
+		album_list = []
+		for m in re.finditer(r'-(?P<link>r[0-9]+)">(?P<album>.*?)</a></td>.*?<td>(?P<artist>.*?)</td>.*?<td>(?P<label>.*?)</td>.*?<td>(?P<year>\d\d\d\d)</td>', data, re.S):
+			album_list.append(["%s - %s (%s)" % (m.group("artist"), m.group("album"), m.group("year")), 'album/' + m.group("link")])
+		album_list = self.sort_album_list(album_list, artist)
+		for i in album_list:
+			model.append(i)
+		if artist != self.various_artists:
+			model.append(["Search on artist (%s)?" % artist, "search/artist"])
+		self.treeviewcolumn.queue_resize()
+		self.status_bar.pop(self.context_id)
+		if len(album_list) == 0:
+			self.status_bar.push(self.context_id, "No albums found")
+			gobject.timeout_add(2500, self.clear_status_bar)
+
+	def list_option(self):
+		model, iter = self.treeview.get_selection().get_selected()
+		if iter != None:
+			name, url = model.get(iter, 0, 1)
+			if name.startswith("Search on artist ("):
+				self.status_bar.push(self.context_id, "Searching for artist...")
+				gobject.idle_add(self.search_artist, self.search_list[self.count][2])
+			else:
+				self.status_bar.push(self.context_id, "Grabbing genres...")
+				gobject.idle_add(self.grab_genre, url)
 		else:
-			sendError('Could Not Find Artist')
-	elif listType == "artist":
-		optionlist = []
-		for i in reglist:
-			optionlist.append((re.sub('"', '\\"', unicode(i[2] + " (" + i[0] + ")", "iso-8859-1")), i[1]))
-		optionlist.append(("Use artist styles? (" + artist + ")","opt1=1&sql=Artist"))
-		return optionlist
-	return -1
+			self.status_bar.pop(self.context_id)
+			self.status_bar.push(self.context_id, "Select an option")
+			gobject.timeout_add(2500, self.clear_status_bar)
 
-def sortList(optionlist, artist, listType):
-	finallist = []
-	if listType == "search":
-		for i in optionlist:
-			if i[0].startswith(artist):
-				finallist.append(i)
-				optionlist.remove(i)
-		if len(artist) > 3:
-			for i in optionlist:
-				if i[0][:3] == artist[:3]:
-					finallist.append(i)
-					optionlist.remove(i)
-		for i in optionlist:
-			if i[0][0] == artist[0]:
-				finallist.append(i)
-				optionlist.remove(i)
-		finallist = finallist + optionlist
-	return finallist
-
-def grabGenre(url, first = True):
-	data = grabby(url)
-	#Genres on artist page
-	reglist = re.findall(r'Style Listing-->(?P<genre>.*?)Style Listing--></tr>', data)
-	if not len(reglist):
-		#Genres on album page
-		reglist = re.findall(r'Styles Listing-->(?P<genre>.*?)Styles Listing--></tr>', data)
-	if len(reglist):
-		genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', unicode(reglist[0], "iso-8859-1"))
-		return genresList
-	elif first:
-		temp = re.findall(r'(?P<artistlink>sql=11:[0-9a-z]*?)">', data)
-		if len(temp):
-			genresList = grabGenre(infoURL + temp[0], False)
-			return genresList
+	def grab_genre(self, url):
+		data = self.grab_url(self.info_url + url)
+		genre_list = []
+		for m in re.finditer(r'/explore/style/.*?-d[0-9]*">(?P<genre>.*?)</a>', data):
+			genre_list.append(m.group('genre'))
+		self.status_bar.pop(self.context_id)
+		if len(genre_list) == 0:
+			if url.find("artist") != -1:
+				message_dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL, gtk.MESSAGE_WARNING, gtk.BUTTONS_OK)
+				message_dialog.set_markup("No genres found for artist <b>%s</b>, giving up." % self.search_list[self.count][2])
+				message_dialog.run()
+				message_dialog.destroy()
+				self.status_bar.pop(self.context_id)
+			else:
+				message_dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL, gtk.MESSAGE_WARNING, gtk.BUTTONS_OK)
+				message_dialog.set_markup("No genres found for album <b>%s</b>, searching on artist <b>%s</b>." % (self.search_list[self.count][1], self.search_list[self.count][2]))
+				message_dialog.run()
+				message_dialog.destroy()
+				self.status_bar.pop(self.context_id)
+				self.status_bar.push(self.context_id, "Searching for artist...")
+				gobject.idle_add(self.search_artist, self.search_list[self.count][2])
 		else:
-			sendError('No Styles Available')
-	sendError('No Styles Available')
+			task = self.set_genre(genre_list)
+			self.status_bar.pop(self.context_id)
+			gobject.idle_add(task.next)
 
-def sendError(message):
-	ZenityErrorMessage(message)
-	sys.exit(1)
+	def clear_status_bar(self):
+		self.status_bar.pop(self.context_id)
+		return False
 
-def main():
-	for arg in sys.argv[1:]:
-		if os.path.isdir(arg):
-			genresList = None
-			for sf in os.listdir(arg):
-				newpath = os.path.join(arg, sf)
-				if os.path.isfile(newpath):
-					if newpath.lower().endswith(".ogg") or newpath.lower().endswith(".flac"):
-						audio = None
-						if newpath.lower().endswith(".ogg"):
-							audio = OggVorbis(newpath)
-						if newpath.lower().endswith(".flac"):
-							audio = FLAC(newpath)
-						title = audio["album"][0]
-						title = re.sub('\xc6','AE', title)
-						title = unicodedata.normalize('NFKD', title).encode('ASCII', 'ignore')
-						title = re.sub('( \(.*\)$)', '', title)
-						single = False
-						if title == "!Single":
-							single = True
-						artist = audio["albumartist"][0]
-						artist = re.sub('\xc6','AE', artist)
-						artist = unicodedata.normalize('NFKD', artist).encode('ASCII', 'ignore')
+	def set_genre(self, genre_list):
+		dialog = gtk.Dialog("Setting genres...", self.window, gtk.DIALOG_MODAL,
+		                   (gtk.STOCK_CANCEL, gtk.RESPONSE_REJECT))
+		dialog.connect("response", self.dialog_response)
+		progress_bar = gtk.ProgressBar()
+		progress_bar.set_size_request(300, -1)
+		label = gtk.Label(", ".join(genre_list))
+		label.set_line_wrap(True)
+		label.set_padding(-1, 5)
+		dialog.get_content_area().pack_start(label)
+		dialog.get_content_area().pack_start(progress_bar)
+		dialog.get_content_area().set_spacing(5)
+		dialog.show_all()
+		self.status_bar.push(self.context_id, "Setting genres...")
+		file_list = []
+		for f in os.listdir(self.search_list[self.count][0]):
+			if f.lower().endswith(".ogg") or f.lower().endswith(".flac"):
+				file_list.append(f)
+		file_list.sort()
 
-						u, p = ZenityProgress(text = 'Looking for album... ' + title, auto_close = True, title = 'Setting genres...')
+		count = 0
+		for f in file_list:
+			if f.lower().endswith(".ogg") or f.lower().endswith(".flac"):
+				if self.close_dialog:
+					self.close_dialog = False
+					break
+				count += 1
+				progress_bar.set_text(f)
+				progress_bar.set_fraction(float(count) / len(file_list))
+				if f.lower().endswith(".ogg"):
+					audio = OggVorbis(os.path.join(self.search_list[self.count][0], f))
+				if f.lower().endswith(".flac"):
+					audio = FLAC(os.path.join(self.search_list[self.count][0], f))
+				audio['genre'] = genre_list
+				audio.save()
+				yield True
+		self.status_bar.pop(self.context_id)
+		dialog.destroy()
+		if not self.search_on_list():
+			gtk.main_quit()
+		yield False
 
-						m = re.search(r'.*?(sql=1[1|0]:[0-9a-z]*)', os.path.abspath(arg))
+	def grab_url(self, url):
+		r = 3
+		while r > 0:
+			try:
+				u = urllib2.urlopen(url)
+				d = u.read()
+				d = re.sub('&amp;amp;', '&', d)
+				d = re.sub('&amp;', '&', d)
+				u.close()
+				return d
+			except Exception, e:
+				print e
+				r -= 1
+		print url
+		print "URL broken; dying"
+		gtk.main_quit()
 
-						if m:
-							u(0, 'direct lookup found: ' + m.group(1))
-							genresList = grabGenre(infoURL + m.group(1))
-						elif not single:
-							optionlist = grab(albumSearchURL + urllib2.quote(title, safe=urlSafeSearch),
-							            r'trlink".*?"cell">(?P<year>\d\d\d\d).*?word;">(?P<artist>.*?)</TD.*?(?P<link>sql=10:.*?)">(?P<title>.*?)</.*?-word;">(?P<label>.*?)</',
-							            'search', artist)
-							searcharg = arg
-							searcharg = re.sub('&', '&amp;', searcharg)
-							if p.poll() == 1:
-								sys.exit()
-							selected = ZenityList(("Name", "URL"), searcharg, select_col = 2, data = optionlist)
-							if not selected == None and not selected[0] == '':
-								if p.poll() == 1:
-									sys.exit()
-								if selected[0] == 'opt1=1&sql=Artist':
-									u(0, "Searching on artist: " + artist)
-									newUrl = grab(artistSearchURL + urllib2.quote(artist, safe=urlSafeSearch),
-									              r'(?P<discoglink>sql=11:[0-9a-z]*?~T2)">Discography',
-									              'single', artist)
-									optionlist = grab(infoURL + newUrl[0],
-									                  r'trlink".*?"sorted-cell">(?P<year>\d\d\d\d).*?(?P<link>sql=10:.*?)">(?P<title>.*?)</.*?-word;">(?P<label>.*?)</',
-									                  'artist', artist)
-									searcharg = arg
-									searcharg = re.sub('&', '&amp;', searcharg)
-									if p.poll() == 1:
-										sys.exit()
-									selected = ZenityList(("Name", "URL"), searcharg, select_col = 2, data = optionlist)
-									if not selected == None and not selected[0] == '':
-										if p.poll() == 1:
-											sys.exit()
-										if selected[0] == 'opt1=1&sql=Artist':
-											genresList = grabGenre(infoURL + newUrl[0])
-										else:
-											genresList = grabGenre(infoURL + selected[0])
-								else:
-									genresList = grabGenre(infoURL + selected[0])
-											#print "Grabbing artist Genre"
-											#temp = re.findall(r'<!--Begin Genre Listing-->(?P<genre>.*?)<!--Genre Listing--><', d)
-											#if len(temp):
-											#	print "Genres:"
-											#	genresList = re.findall('sql=.*?>(?P<genre>.*?)</a', temp[0])
-											#	for g in genresList:
-											#		print g
-											#else:
-											#	print "No genre! Completely boring music, apparently."
-						else:
-							#Chokes if search doesn't return a direct link to an artist
-							genresList = grabGenre(artistSearchURL + urllib2.quote(artist, safe=urlSafeSearch), False)
-						break
-			if not genresList == None:
-				total = len(os.listdir(arg))
-				count = 0
-				genreslistsp = ''
-				for g in genresList:
-					if(len(genreslistsp) > 0):
-						genreslistsp += ", "
-					genreslistsp += "\"" + g + "\""
-				for sf in os.listdir(arg):
-					if p.poll() == 1:
-						sys.exit()
-					count += 1
-					newpath = os.path.join(arg, sf)
-					if os.path.isfile(newpath):
-						if newpath.lower().endswith(".ogg") or newpath.lower().endswith(".flac"):
-							audio = None
-							if newpath.lower().endswith(".ogg"):
-								audio = OggVorbis(newpath)
-							if newpath.lower().endswith(".flac"):
-								audio = FLAC(newpath)
-							audio["genre"] = genresList
-							audio.save()
-							u(float(count) / total, str(count) + "/" + str(total) + ": " + unicodedata.normalize('NFKD', audio['title'][0]).encode('ASCII', 'ignore'))
-							#print "\"" + audio["title"][0] + "\" genre set to " + genreslistsp
+	def sort_album_list(self, list, artist):
+		first_list = []
+		second_list = []
+		third_list = []
+		for i in list[:]:
+			if i[0].lower().startswith(artist.lower()):
+				first_list.append(i)
+				list.remove(i)
+				continue
+			if i[0].lower()[:3] == artist.lower()[:3]:
+				second_list.append(i)
+				list.remove(i)
+				continue
+			if i[0].lower()[0] == artist.lower()[0]:
+				third_list.append(i)
+				list.remove(i)
+				continue
+		first_list.extend(second_list)
+		first_list.extend(third_list)
+		first_list.extend(list)
+		return first_list
 
-if __name__ == '__main__':
-	main()
+	def delete_event(self, widget, event, data=None):
+		gtk.main_quit()
 
+	def ok_button_clicked(self, w):
+		gobject.idle_add(self.list_option)
+
+	def skip_button_clicked(self, w):
+		if not self.search_on_list():
+			gtk.main_quit()
+
+	def cancel_button_clicked(self, w):
+		gtk.main_quit()
+
+	def row_activated(self, treeview, path, view_column):
+		gobject.idle_add(self.list_option)
+
+	def dialog_response(self, dialog, response):
+		if response in [gtk.RESPONSE_REJECT.real, gtk.RESPONSE_DELETE_EVENT.real]:
+			self.close_dialog = True
+			dialog.destroy()
+
+if __name__ == "__main__":
+	if(len(sys.argv) > 1):
+		AmgGenreGrabber(sys.argv[1:])
+	else:
+		print "Usage: amgGenre.py [DIRECTORY]..."
+		sys.exit()
+	gtk.main()
